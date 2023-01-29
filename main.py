@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import random
 import string
+
 
 app = FastAPI()
 
@@ -26,25 +28,20 @@ async def root():
     return {"message", "it's working"}
 
 
-@app.get("/generate/function")
-async def generate_function(
-        random_function_letters: bool = True,
-        grade_min: int = 2,
-        grade_max: int = 3,
-        param_min: int = -4,
-        param_max: int = 5,
-        comma_parameter: bool = False,
-        comma_digits: int = 2,
-):
-    first_letter = random.choice(ALPHABET)
-    function_letters = (first_letter, random.choice(ALPHABET.replace(first_letter, ""))) if random_function_letters else ('y', 'x',)
-    function_grade = random.randint(grade_min, grade_max)
+class Body(BaseModel):
+    grade_min: int = 2,
+    grade_max: int = 3,
+    param_min: int = -4,
+    param_max: int = 5,
 
-    if comma_parameter:
-        function_params = [random.random() * (param_max - param_min) + param_min for _ in range(function_grade + 1)]
-    else:
-        function_params = [random.randint(param_min, param_max) for _ in range(function_grade + 1)]
 
+@app.post("/generate/function")
+async def generate_function(body: Body):
+    function_letters = ('y', 'x',)
+    function_grade = random.randint(body.grade_min, body.grade_max)
+
+    # function_params = [random.random() * (param_max - param_min) + param_min for _ in range(function_grade + 1)]
+    function_params = [random.randint(body.param_min, body.param_max) for _ in range(function_grade + 1)]
 
     function_solved = (
             f"{function_letters[0]}({function_letters[1]})= " +
@@ -62,7 +59,11 @@ async def generate_function(
     points = []
     for _ in range(len(function_params)):
         points.append(calculate_point(function_params, points_available.pop(random.randint(0, len(points_available) - 1))))
-    task = f"""Bestimmen sie die Parameter {", ".join(ALPHABET[0:len(function_params)])} so, dass der Graph der Funktion \n{function_veiled}\n durch die Punkte {', '.join([f"({point[0]}|{point[1]})" for point in points])} geht."""
+    task = f"""
+    Bestimmen sie die Parameter {", ".join(ALPHABET[0:len(function_params)])} so, dass der Graph der Funktion \n
+    {function_veiled}\n 
+    durch die Punkte {', '.join([f"({point[0]}|{point[1]})" for point in points])} geht.
+    """
     return {
         "task": task,
         "grade": function_grade,
