@@ -82,13 +82,8 @@ class Function:
         values_available = []
         for i in range(-100 - self.grade, 100 + self.grade):
             values_available.append((i, self.insert(i)))
-        values_available_reduced = list(filter(lambda e: e is int, values_available))
-        if len(values_available_reduced) > self.grade:
-            values_available = values_available_reduced
-        if len(values_available) - self.grade - 1 >= 5:
-            values_available.sort(key=lambda e: abs(e[1]))
-            values_available = values_available[:-(len(values_available) - self.grade - 1)]
-        print(values_available)
+        values_available.sort(key=lambda e: abs(e[1]))
+        values_available = values_available[:-(len(values_available) - self.grade - 2)]
         special = []
 
         match random.randint(0, 1):
