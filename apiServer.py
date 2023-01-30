@@ -29,10 +29,13 @@ class Information:
 
 class Function:
     ALPHABET = string.ascii_lowercase
+    points = list(string.ascii_uppercase[15:])
 
-    def __init__(self, grade_range: tuple, parameter_range: tuple, letters: tuple = ('y', 'x')):
+    def __init__(self, grade_range: tuple, parameter_range: tuple, letters: tuple = ('f', 'x'), grade_parameter_lowering: bool = False):
         grade = random.randint(*grade_range)
         self.parameters = [random.randint(*parameter_range) for _ in range(grade + 1)]
+        if grade_parameter_lowering and len(self.parameters) > 4:
+            self.parameters = [round(random.random() * 2 - 1, 2) if i < (len(self.parameters) - 4) else e for i, e in enumerate(self.parameters)]
         self.letters = letters
 
     def insert(self, insertion_value: int | float):
@@ -82,9 +85,10 @@ class Function:
         values_available_reduced = list(filter(lambda e: e is int, values_available))
         if len(values_available_reduced) > self.grade:
             values_available = values_available_reduced
-        if len(values_available) - self.grade - 1 >= 4:
-            values_available.sort(key=lambda e: e[1])
-            values_available = values_available[-(len(values_available) - self.grade - 1)]
+        if len(values_available) - self.grade - 1 >= 5:
+            values_available.sort(key=lambda e: abs(e[1]))
+            values_available = values_available[:-(len(values_available) - self.grade - 1)]
+        print(values_available)
         special = []
 
         match random.randint(0, 1):
@@ -96,6 +100,7 @@ class Function:
                 special.append(
                     f"bei y = {self.insert(0)} durch die y-Achse läuft"
                 )
+        values_available = list(filter(lambda e: e[0] != 0, values_available))
 
         for i in self.calculate_zeros():
             match random.randint(0, 1):
@@ -107,6 +112,7 @@ class Function:
                     special.append(
                         f"die x-Achse bei x = {i} schneidet"
                     )
+            values_available = list(filter(lambda e: e[0] != i, values_available))
         for i in self.derived.calculate_zeros():
             match random.randint(0, 5):
                 case 0:
@@ -147,15 +153,22 @@ class Function:
         informations = []
         for _ in range(self.grade + 1):
             if len(special) >= 1:
-                match random.randint(0, 1):
-                    case 0:
+                match random.randint(0, 3):
+                    case 0 | 1 | 2:
                         informations.append(special.pop(random.randint(0, len(special) - 1)))
-                    case 1:
-                        informations.append(values_available.pop(random.randint(0, len(values_available) - 1)))
-            else:
-                informations.append(values_available.pop(random.randint(0, len(values_available) - 1)))
+                    case 3:
+                        point = values_available.pop(random.randint(0, len(values_available) - 1))
+                        informations.append(
+                            f"durch den Punkt {self.get_point()}({point[0]}| {point[1]}) geht"
+                        )
 
-        task += ", ".join(informations)
+            else:
+                point = values_available.pop(random.randint(0, len(values_available) - 1))
+                informations.append(
+                    f"durch den Punkt {self.get_point()}({point[0]}| {point[1]}) geht"
+                )
+
+        task += ", ".join(informations[:-1]) + " und " + informations[-1]
 
         match wrapper_text:
             case 0 | 1 | 3 | 4:
@@ -166,6 +179,12 @@ class Function:
         match random.randint(0, 5):
             case 5:
                 task += "\nIst die Funktion damit eindeutig bestimmt?"
+
+        return task
+
+    def get_point(self):
+        self.points = self.points[1:] + [self.points[0]]
+        return self.points[-1]
 
     @property
     def solved(self):
@@ -201,12 +220,16 @@ class FunctionPreferences(BaseModel):
     grade_max: int = 3,
     param_min: int = -4,
     param_max: int = 5,
+    parameter_lowering: bool = False
 
 
 @app.post("/generate/function")
 async def generate_function(preferences: FunctionPreferences):
-    working_function = Function((preferences.grade_min, preferences.grade_max), (preferences.param_min, preferences.param_max))
-
+    working_function = Function(
+        grade_range=(preferences.grade_min, preferences.grade_max),
+        parameter_range=(preferences.param_min, preferences.param_max),
+        grade_parameter_lowering=preferences.parameter_lowering
+    )
     return {
         "task": working_function.make_task(),
         "function_solved": working_function.solved,
