@@ -15,20 +15,188 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ALPHABET = string.ascii_lowercase
-
-
-def calculate_point(params, x):
-    y = sum([param * x**(len(params)-1-i) for i, param in enumerate(params)])
-    return x, y
-
 
 @app.get("/")
 async def root():
     return {"message", "it's working"}
 
 
-class Body(BaseModel):
+class Information:
+    def __init__(self, text, value: int = 1):
+        self.text = text
+        self.value = value
+
+
+class Function:
+    ALPHABET = string.ascii_lowercase
+
+    def __init__(self, grade_range: tuple, parameter_range: tuple, letters: tuple = ('y', 'x')):
+        grade = random.randint(*grade_range)
+        self.parameters = [random.randint(*parameter_range) for _ in range(grade + 1)]
+        self.letters = letters
+
+    def insert(self, insertion_value: int | float):
+        return sum([parameter * insertion_value ** (len(self.parameters)-1-i) for i, parameter in enumerate(self.parameters)])
+
+    def calculate_zeros(self, calculation_range: range = None):
+        if calculation_range is None:
+            calculation_range = (-10*self.grade, 10*self.grade)
+        zeros = []
+        for i in calculation_range:
+            current_value = self.insert(i)
+            if current_value == 0:
+                zeros.append(i)
+        return zeros
+
+    def make_task(self):
+        wrapper_text = random.randint(0, 4)
+        match wrapper_text:
+            case 0:
+                task = f"""
+                Bestimmen sie die Parameter {", ".join(self.ALPHABET[0:len(self.parameters)])} so, dass der Graph der Funktion \n
+                {self.veiled}\n
+                """
+            case 1:
+                task = f"""
+                Bestimmen sie eine Funktion {self.grade}. Grades so, dass sie 
+                """
+            case 2:
+                task = f"""
+                Ist es möglich, die Parameter {", ".join(self.ALPHABET[0:len(self.parameters)])} so zu bestimmen, dass die Funktion {self.letters[0]} 
+                """
+            case 3:
+                task = f"""
+                Gegeben ist die Funktion {self.veiled}.\n
+                Bestimmen Sie die Parameter so, dass die Funktion 
+                """
+            case 4:
+                task = f"""
+                Geben sie ein möglichst einfache Funktion an, die 
+                """
+            case _:
+                task = ""
+
+        values_available = []
+        for i in range(-100 - self.grade, 100 + self.grade):
+            values_available.append((i, self.insert(i)))
+        values_available_reduced = list(filter(lambda e: e is int, values_available))
+        if len(values_available_reduced) > self.grade:
+            values_available = values_available_reduced
+        if len(values_available) - self.grade - 1 >= 4:
+            values_available.sort(key=lambda e: e[1])
+            values_available = values_available[-(len(values_available) - self.grade - 1)]
+        special = []
+
+        match random.randint(0, 1):
+            case 0:
+                special.append(
+                    f"die y-Achse bei y = {self.insert(0)} schneidet"
+                )
+            case 1:
+                special.append(
+                    f"bei y = {self.insert(0)} durch die y-Achse läuft"
+                )
+
+        for i in self.calculate_zeros():
+            match random.randint(0, 1):
+                case 0:
+                    special.append(
+                        f"eine Nullstelle bei x = {i} hat"
+                    )
+                case 1:
+                    special.append(
+                        f"die x-Achse bei x = {i} schneidet"
+                    )
+        for i in self.derived.calculate_zeros():
+            match random.randint(0, 5):
+                case 0:
+                    special.append(
+                        f"an der Stelle x = {i} eine Steigung von m = 0 hat"
+                    )
+                case 1:
+                    special.append(
+                        f"an der Stelle x = {i} ein lokales Extrema hat"
+                    )
+                case 2:
+                    special.append(
+                        f"eine horizontale Tangente an der Stelle x = {i} hat"
+                    )
+                case 3 | 4 | 5:
+                    current_2nd_derived_value = self.derived.derived.insert(i)
+                    if current_2nd_derived_value == 0:
+                        special.append(
+                            f"einen {'Sattelpunkt' if random.randint(0, 1) else 'Terrassenpunkt'} an der Stelle x = {i} hat"
+                        )
+                    elif current_2nd_derived_value < 0:
+                        special.append(
+                            f"einen Hochpunkt an der Stelle x = {i} hat"
+                        )
+                    elif current_2nd_derived_value > 0:
+                        special.append(
+                            f"einen Tiefpunkt an der Stelle x = {i} hat"
+                        )
+
+        i = values_available.pop(random.randint(0, len(values_available) - 1))[0]
+        derived_value = self.derived.insert(i)
+        match 0:
+            case 0:
+                special.append(
+                    f"bei x = {i} eine Steigung von m = {derived_value} hat"
+                )
+        
+        informations = []
+        for _ in range(self.grade + 1):
+            if len(special) >= 1:
+                match random.randint(0, 1):
+                    case 0:
+                        informations.append(special.pop(random.randint(0, len(special) - 1)))
+                    case 1:
+                        informations.append(values_available.pop(random.randint(0, len(values_available) - 1)))
+            else:
+                informations.append(values_available.pop(random.randint(0, len(values_available) - 1)))
+
+        task += ", ".join(informations)
+
+        match wrapper_text:
+            case 0 | 1 | 3 | 4:
+                task += "."
+            case 2:
+                task += "?"
+
+        match random.randint(0, 5):
+            case 5:
+                task += "\nIst die Funktion damit eindeutig bestimmt?"
+
+    @property
+    def solved(self):
+        return (
+                f"{self.letters[0]}({self.letters[1]})= " +
+                " + ".join([
+                    f"{e}*{self.letters[1]}^{len(self.parameters) - i - 1}" for i, e in enumerate(self.parameters)
+                ])
+        ).replace(f"*{self.letters[1]}^0", "").replace(f"{self.letters[1]}^1", self.letters[1])
+
+    @property
+    def veiled(self):
+        return (
+                f"{self.letters[0]}({self.letters[1]})= " +
+                " + ".join([
+                    f"{self.ALPHABET[i]}*{self.letters[1]}^{len(self.parameters) - i - 1}" for i, e in enumerate(self.parameters)
+                ])
+        ).replace(f"*{self.letters[1]}^0", "").replace(f"{self.letters[1]}^1", self.letters[1])
+
+    @property
+    def derived(self):
+        derived_function = Function((0, 1), (-4, 5))
+        derived_function.parameters = [e * (len(self.parameters) - i - 1) for i, e in enumerate(self.parameters) if len(self.parameters) - i - 1 != 0]
+        return derived_function
+
+    @property
+    def grade(self):
+        return len(self.parameters) - 1
+
+
+class FunctionPreferences(BaseModel):
     grade_min: int = 2,
     grade_max: int = 3,
     param_min: int = -4,
@@ -36,41 +204,12 @@ class Body(BaseModel):
 
 
 @app.post("/generate/function")
-async def generate_function(body: Body):
-    function_letters = ('y', 'x',)
-    function_grade = random.randint(body.grade_min, body.grade_max)
+async def generate_function(preferences: FunctionPreferences):
+    working_function = Function((preferences.grade_min, preferences.grade_max), (preferences.param_min, preferences.param_max))
 
-    # function_params = [random.random() * (param_max - param_min) + param_min for _ in range(function_grade + 1)]
-    function_params = [random.randint(body.param_min, body.param_max) for _ in range(function_grade + 1)]
-
-    function_solved = (
-            f"{function_letters[0]}({function_letters[1]})= " +
-            " + ".join([
-                f"{e}*{function_letters[1]}^{len(function_params) - i - 1}" for i, e in enumerate(function_params)
-            ])
-    ).replace(f"*{function_letters[1]}^0", "").replace(f"{function_letters[1]}^1", function_letters[1])
-    function_veiled = (
-            f"{function_letters[0]}({function_letters[1]})= " +
-            " + ".join([
-                f"{ALPHABET[i]}*{function_letters[1]}^{len(function_params) - i - 1}" for i, e in enumerate(function_params)
-            ])
-    ).replace(f"*{function_letters[1]}^0", "").replace(f"{function_letters[1]}^1", function_letters[1])
-    points_available = list(range(0 - function_grade, 2 + function_grade))
-    points = []
-    for _ in range(len(function_params)):
-        points.append(calculate_point(function_params, points_available.pop(random.randint(0, len(points_available) - 1))))
-    task = f"""
-    Bestimmen sie die Parameter {", ".join(ALPHABET[0:len(function_params)])} so, dass der Graph der Funktion \n
-    {function_veiled}\n 
-    durch die Punkte {', '.join([f"({point[0]}|{point[1]})" for point in points])} geht.
-    """
     return {
-        "task": task,
-        "grade": function_grade,
-        "function_solved": function_solved,
-        "function_veiled": function_veiled,
-        "parameters": function_params,
-        "points": points
+        "task": working_function.make_task(),
+        "function_solved": working_function.solved,
     }
 
 
